@@ -27,7 +27,7 @@ pub fn logic(num_nodes: Int, topology: String, alogrithm: String) -> Nil {
     let actors : Dict(Int, Subject(Message)) = dict.new()
     let actors = seed_actors(num_nodes, init_node, actors)
 
-    io.print("Created all actors, now testing for length of actors: " <> int.to_string(dict.size(actors)))
+    io.println("Created all actors, now testing for length of actors: " <> int.to_string(dict.size(actors)))
 
 
 
@@ -40,6 +40,7 @@ pub fn logic(num_nodes: Int, topology: String, alogrithm: String) -> Nil {
         }
     "line" -> {
         io.println("Creating line topology")
+        line_topology(num_nodes, actors)
     }
     "3D" -> {
         io.println("Creating 3D topology") 
@@ -86,7 +87,94 @@ pub fn seed_actors(num_nodes: Int, init_node: Node,  actors: Dict(Int, Subject(M
     }
   }
 }
+//line topology creation:
 
+pub fn line_topology(num_nodes: Int, actors: Dict(Int, Subject(Message))) -> Nil {
+    //iterate through the dict and assign neighbors
+    //first node only has one neighbor, second to last node only has one neighbor, all others have two neighbors
+    //node 1 -> node 2
+    //node n -> node n-1
+    //node i -> node i-1, node i+1
+    line_topology_recursion(1, num_nodes, actors)
+    Nil
+}
+fn line_topology_recursion(current: Int, num_nodes: Int, actors: Dict(Int, Subject(Message))) -> Nil {
+    case current {
+        1 -> {
+            //only has one neighbor
+            let neighbor = dict.get(actors, 2)
+            case neighbor {
+                Ok(neighbor) -> {
+                    let node = dict.get(actors, 1)
+                    case node {
+                        Ok(node) -> {
+                            process.send(node, AddNeighbors([neighbor]))
+                            //io.println("Node 1 added neighbor 2")
+                            line_topology_recursion(current + 1, num_nodes, actors)
+                        }
+                        _ -> {
+                            io.println("Node 1 not found")
+                            Nil
+                        }
+                    }
+                }
+                _ -> {
+                    io.println("Neighbor 2 not found")
+                    Nil
+                }
+            }
+        }
+        n if n == num_nodes -> {
+            //only has one neighbor
+            let neighbor = dict.get(actors, num_nodes - 1)
+            case neighbor {
+                Ok(neighbor) -> {
+                    let node = dict.get(actors, num_nodes)
+                    case node {
+                        Ok(node) -> {
+                            process.send(node, AddNeighbors([neighbor]))
+                            //io.println("Node " <> int.to_string(num_nodes) <> " added neighbor " <> int.to_string(num_nodes - 1))
+                            Nil
+                        }
+                        _ -> {
+                            io.println("Node " <> int.to_string(num_nodes) <> " not found")
+                            Nil
+                        }
+                    }
+                }
+                _ -> {
+                    io.println("Neighbor " <> int.to_string(num_nodes - 1) <> " not found")
+                    Nil
+                }
+            }
+        }
+        _ -> {
+            //has two neighbors
+            let neighbor1 = dict.get(actors, current - 1)
+            let neighbor2 = dict.get(actors, current + 1)
+            case neighbor1, neighbor2 {
+                Ok(neighbor1), Ok(neighbor2) -> {
+                    let node = dict.get(actors, current)
+                    case node {
+                        Ok(node) -> {
+                            process.send(node, AddNeighbors([neighbor1, neighbor2]))
+                            //io.println("Node " <> int.to_string(current) <> " added neighbors " <> int.to_string(current - 1) <> " and " <> int.to_string(current + 1))
+                            line_topology_recursion(current + 1, num_nodes, actors)
+                        }
+                        _ -> {
+                            io.println("Node " <> int.to_string(current) <> " not found")
+                        }
+                    }
+                }
+                _, _ -> {
+                    io.println("Neighbors for node " <> int.to_string(current) <> " not found")
+                    Nil 
+                }
+            }
+        }
+    }
+    Nil
+}
 
 //actor logic here
 
@@ -123,12 +211,12 @@ pub fn handle_message(node: Node, message: Message) -> actor.Next(Node, Message)
     case message {
         Shutdown -> actor.stop()
         AddNeighbors(neighbors) -> {
-            io.println("Previous neighbors: " <> int.to_string(list.length(node.neighbors)))
+            //io.println("Previous neighbors: " <> int.to_string(list.length(node.neighbors)))
             let new_node = Node(
                 parent: node.parent,
                 neighbors: neighbors,
             )
-            io.println("Neighbors added: " <> int.to_string(list.length(neighbors)))
+            //io.println("Neighbors added: " <> int.to_string(list.length(neighbors)))
             actor.continue(new_node)
         }
     }
