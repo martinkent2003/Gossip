@@ -1,16 +1,9 @@
-import gleam/erlang/process
-import gleam/float
 import gleam/list
 import argv
-//import gleam/erlang/process
-import gleam/otp/actor
 import gleam/int
 import gleam/io
-//import gleam/list
-import gleam/time/timestamp
-import gleam/time/duration
-
 import node_actor
+
 
 const topologies = ["full", "line", "3D", "imp3D"]
 const algorithms = ["gossip", "push-sum"]
@@ -34,7 +27,7 @@ pub fn main() -> Nil {
             True, True -> {
               io.println ("Topology: " <> topology)
               io.println ("Algorithm: " <> algorithm)
-              //logic(num_nodes, topology, algorithm)
+              node_actor.logic(num_nodes, topology, algorithm)
             }
             False, _ -> io.println("Invalid topology. Valid topologies are: full, line, 3D, imp3D")
             _, False -> io.println("Invalid algorithm. Valid algorithms are: gossip, push-sum")

@@ -30,13 +30,8 @@ pub fn logic(num_nodes: Int, topology: String, alogrithm: String) -> Nil {
     io.print("Created all actors, now testing for length of actors: " <> int.to_string(dict.size(actors)))
 
 
-    let assert Ok(actor) =
-        actor.new(init_node) |> actor.on_message(handle_message) |> actor.start
 
-    let subject = actor.data
-    io.println("Spawned node actor, sleeping then updating neighbors to see if working ")
-    process.sleep(1000)
-    process.send(subject, AddNeighbors([subject]))
+
 
     //constant
     case topology {
