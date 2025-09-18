@@ -3,11 +3,14 @@ import gleam/float
 import gleam/list
 import argv
 //import gleam/erlang/process
+import gleam/otp/actor
 import gleam/int
 import gleam/io
 //import gleam/list
 import gleam/time/timestamp
 import gleam/time/duration
+
+import node_actor
 
 const topologies = ["full", "line", "3D", "imp3D"]
 const algorithms = ["gossip", "push-sum"]
@@ -31,7 +34,7 @@ pub fn main() -> Nil {
             True, True -> {
               io.println ("Topology: " <> topology)
               io.println ("Algorithm: " <> algorithm)
-              logic(num_nodes, topology, algorithm)
+              //logic(num_nodes, topology, algorithm)
             }
             False, _ -> io.println("Invalid topology. Valid topologies are: full, line, 3D, imp3D")
             _, False -> io.println("Invalid algorithm. Valid algorithms are: gossip, push-sum")
@@ -47,39 +50,3 @@ pub fn main() -> Nil {
 
 }
 
-fn logic(num_nodes: Int, topology: String, alogrithm: String) -> Nil {
-  //here we create the topology
-  case topology {
-    "full" -> {
-      io.println("Creating full topology")
-      }
-    "line" -> {
-      io.println("Creating line topology")
-    }
-    "3D" -> {
-     io.println("Creating 3D topology") 
-    }
-    "imp3D" -> {
-      io.println("Creating imp3D topology")
-    }
-    _ -> io.println("Invalid topology")
-  }
-
-  //here we would run the algorithm on the created topology
-  //start timer here 
-  let start = timestamp.system_time()
-  case alogrithm {
-    "gossip" -> {
-      io.println("Running gossip algorithm")
-    }
-    "push-sum" -> {
-      io.println("Running push-sum algorithm")
-    }
-    _ -> io.println("Invalid algorithm")
-  }
-  process.sleep(1230)
-  let time = duration.to_seconds_and_nanoseconds(timestamp.difference(start, timestamp.system_time()))
-  echo time
-  //here we will create the algorithm
-  Nil
-}
