@@ -37,6 +37,7 @@ pub fn logic(num_nodes: Int, topology: String, alogrithm: String) -> Nil {
     case topology {
     "full" -> {
         io.println("Creating full topology")
+        full_topology(num_nodes, actors)
         }
     "line" -> {
         io.println("Creating line topology")
@@ -176,11 +177,47 @@ fn line_topology_recursion(current: Int, num_nodes: Int, actors: Dict(Int, Subje
     Nil
 }
 
+//full topology creation:
+
+pub fn full_topology(num_nodes: Int, actors:Dict(Int, Subject(Message))) -> Nil {
+    //iterate through the dict and assign all other nodes as neighbors
+    let all_actor_subjects = dict.values(actors)
+    let current = 1
+    full_topology_recursion(current, num_nodes, all_actor_subjects, actors)
+    Nil
+}
+
+pub fn full_topology_recursion(current: Int, num_nodes: Int, all_actor_subjects: List(Subject(Message)), actors:Dict(Int, Subject(Message))) -> Nil {
+    case current {
+        n if n >= num_nodes -> {
+            //finished
+            io.println("Finished creating full topology")
+            Nil
+        }
+        _ -> {
+            let node = dict.get(actors, current)
+            case node {
+                Ok(node) -> {
+                    //remove self from neighbor list
+                    let neighbors = list.filter(all_actor_subjects, fn(subject) {
+                        subject != node
+                    })
+                    process.send(node, AddNeighbors(neighbors))
+                    io.println("Node " <> int.to_string(current) <> " added " <> int.to_string(list.length(neighbors)) <> " neighbors")
+                    //io.println("Node " <> int.to_string(current) <> " added " <> int.to_string(list.length(neighbors)) <> " neighbors")
+                    full_topology_recursion(current + 1, num_nodes, all_actor_subjects, actors)
+                }
+                _ -> {
+                    io.println("Node " <> int.to_string(current) <> " not found")
+                    Nil
+                }
+            }
+        }
+    }
+    Nil
+}
+
 //actor logic here
-
-
-
-
 pub type ParentMessage{
     Received(id: Int)
     Converged(id: Int)
