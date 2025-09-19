@@ -7,7 +7,7 @@ import gleam/list
 import gleam/otp/actor
 import gleam/time/duration
 import gleam/time/timestamp
-import message_types.{type Message, AddNeighbors}
+import message_types.{type Message, type ParentMessage, AddNeighbors}
 import node.{type Node, Node, handle_message}
 
 @external(erlang, "math", "pow")
@@ -26,9 +26,8 @@ pub fn logic(num_nodes: Int, topology: String, alogrithm: String) -> Nil {
   //id: subject of actor, value: list of neighbors subjects
   let parent_process = process.new_subject()
 
-  let init_node = Node(parent: parent_process, neighbors: [])
   let actors: Dict(Int, Subject(Message)) = dict.new()
-  let actors = seed_actors(num_nodes, init_node, actors)
+  let actors = seed_actors(num_nodes, parent_process, actors)
 
   io.println(
     "Created all actors, now testing for length of actors: "
@@ -79,7 +78,7 @@ pub fn logic(num_nodes: Int, topology: String, alogrithm: String) -> Nil {
 //seeding actors recursive loop:
 pub fn seed_actors(
   num_nodes: Int,
-  init_node: Node,
+  parent_process: Subject(ParentMessage) ,
   actors: Dict(Int, Subject(Message)),
 ) -> Dict(Int, Subject(Message)) {
   case num_nodes {
@@ -88,12 +87,14 @@ pub fn seed_actors(
       actors
     }
     _ -> {
+      
+      let init_node = Node(id: num_nodes, parent: parent_process, neighbors: [], rumor_count: 0)
       let assert Ok(actor) =
         actor.new(init_node) |> actor.on_message(handle_message) |> actor.start
       let subject = actor.data
       let actors = dict.insert(actors, num_nodes, subject)
       io.print(" " <> int.to_string(num_nodes) <> " ")
-      seed_actors(num_nodes - 1, init_node, actors)
+      seed_actors(num_nodes - 1, parent_process, actors)
     }
   }
 }

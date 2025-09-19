@@ -10,6 +10,8 @@ pub type ParentMessage {
 pub type Message {
   //used to seed the 
   AddNeighbors(neighbors: List(Subject(Message)))
+  Gossip
+  StartPushSum
   //implement the inter-actor messages received
   Shutdown
 }
