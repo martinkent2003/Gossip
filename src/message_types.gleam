@@ -3,7 +3,7 @@ import gleam/erlang/process.{type Subject}
 pub type ParentMessage {
   ParentInit
   Received
-  Converged(id: Int)
+  Converged
   //message from child to parent to indicate convergence
 }
 

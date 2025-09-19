@@ -5,12 +5,11 @@ import gleam/int
 import gleam/io
 import gleam/list
 import gleam/otp/actor
-import gleam/time/duration
-import gleam/time/timestamp
 import message_types.{
-  type Message, type ParentMessage, AddNeighbors, ParentInit, Received,
+  type Message, type ParentMessage, AddNeighbors, Converged, Gossip, ParentInit,
+  Received,
 }
-import node.{type Node, Node, handle_message}
+import node.{Node, handle_message}
 
 @external(erlang, "math", "pow")
 fn pow(base: Float, exp: Float) -> Float
@@ -27,7 +26,15 @@ pub fn start_parent(
   actor.new_with_initialiser(1000, fn(self_subject) {
     actor.send(self_subject, ParentInit)
     let state =
-      ParentState(num_nodes, 0, topology, algorithm, self_subject, main_process)
+      ParentState(
+        num_nodes,
+        0,
+        topology,
+        algorithm,
+        self_subject,
+        main_process,
+        dict.new(),
+      )
     let _result =
       Ok(
         actor.initialised(state)
@@ -44,22 +51,27 @@ fn handle_message_parent(
 ) -> actor.Next(ParentState, ParentMessage) {
   case message {
     ParentInit -> {
-      echo state.self
-      logic(state)
-      actor.continue(state)
+      let new_state = ParentState(..state, nodes: logic(state))
+      actor.continue(new_state)
     }
     Received -> {
+      let empty = dict.is_empty(state.nodes)
       let new_state = ParentState(..state, nodes_ready: state.nodes_ready + 1)
-      case new_state.nodes_ready == new_state.num_nodes {
-        True -> {
-          let _ = echo "READY TO SEND MESSAGE"
+      case new_state.nodes_ready == new_state.num_nodes, empty {
+        True, False -> {
+          let assert Ok(node) = dict.get(state.nodes, 1)
+          process.send(node, Gossip)
           Nil
         }
-        False -> Nil
+        True, True -> process.send(state.self, Received)
+        False, _ -> Nil
       }
       actor.continue(new_state)
     }
-    _ -> actor.continue(state)
+    Converged -> {
+      process.send(state.main_process, "Done")
+      actor.continue(state)
+    }
   }
 }
 
@@ -71,15 +83,14 @@ pub type ParentState {
     algorithm: String,
     self: process.Subject(ParentMessage),
     main_process: process.Subject(String),
+    nodes: Dict(Int, Subject(Message)),
   )
 }
 
-pub fn logic(state: ParentState) -> Nil {
+pub fn logic(state: ParentState) -> Dict(Int, Subject(Message)) {
   //first we spawn num_nodes amount of actors, get back the subject, and store them in a hashmap
   //id: subject of actor, value: list of neighbors subjects
 
-  let init_node =
-    Node(id: state.num_nodes, parent: state.self, neighbors: [], rumor_count: 0)
   let actors: Dict(Int, Subject(Message)) = dict.new()
   let actors = seed_actors(state.num_nodes, state.self, actors)
 
@@ -111,7 +122,7 @@ pub fn logic(state: ParentState) -> Nil {
 
   //here we would run the algorithm on the created topology
   //start timer here 
-  let start = timestamp.system_time()
+
   case state.algorithm {
     "gossip" -> {
       io.println("Running gossip algorithm")
@@ -121,13 +132,8 @@ pub fn logic(state: ParentState) -> Nil {
     }
     _ -> io.println("Invalid algorithm")
   }
-  process.sleep(1230)
-  let time =
-    duration.to_seconds(timestamp.difference(start, timestamp.system_time()))
-  process.send(
-    state.main_process,
-    "Program took " <> float.to_string(time) <> " seconds",
-  )
+
+  actors
 }
 
 //seeding actors recursive loop:
@@ -153,7 +159,6 @@ pub fn seed_actors(
         actor.new(init_node) |> actor.on_message(handle_message) |> actor.start
       let subject = actor.data
       let actors = dict.insert(actors, num_nodes, subject)
-      io.print(" " <> int.to_string(num_nodes) <> " ")
       seed_actors(num_nodes - 1, parent_process, actors)
     }
   }
@@ -274,7 +279,7 @@ pub fn full_topology_recursion(
   actors: Dict(Int, Subject(Message)),
 ) -> Nil {
   case current {
-    n if n >= num_nodes -> {
+    n if n > num_nodes -> {
       //finished
       io.println("Finished creating full topology")
       Nil
@@ -287,14 +292,6 @@ pub fn full_topology_recursion(
           let neighbors =
             list.filter(all_actor_subjects, fn(subject) { subject != node })
           process.send(node, AddNeighbors(neighbors))
-          io.println(
-            "Node "
-            <> int.to_string(current)
-            <> " added "
-            <> int.to_string(list.length(neighbors))
-            <> " neighbors",
-          )
-          //io.println("Node " <> int.to_string(current) <> " added " <> int.to_string(list.length(neighbors)) <> " neighbors")
           full_topology_recursion(
             current + 1,
             num_nodes,
@@ -385,12 +382,6 @@ fn td_topology_recursion(
         False -> neighbors
       }
 
-      io.println(
-        "Node: "
-        <> int.to_string(current + 1)
-        <> " has "
-        <> int.to_string(list.length(neighbors)),
-      )
       case dict.get(actors, current + 1) {
         Ok(node) -> process.send(node, AddNeighbors(neighbors))
         Error(_) -> Nil
@@ -416,7 +407,6 @@ fn update_neighbors(
 ) -> List(Subject(Message)) {
   case dict.get(actors, cand + 1) {
     Ok(value) -> {
-      io.print(int.to_string(cand + 1) <> " ")
       list.append(neighbors, [value])
     }
     Error(_) -> neighbors

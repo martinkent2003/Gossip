@@ -1,8 +1,11 @@
 import argv
 import gleam/erlang/process
+import gleam/float
 import gleam/int
 import gleam/io
 import gleam/list
+import gleam/time/duration
+import gleam/time/timestamp
 import parent
 
 const topologies = ["full", "line", "3D", "imp3D"]
@@ -28,6 +31,8 @@ pub fn main() -> Nil {
             True, True -> {
               io.println("Topology: " <> topology)
               io.println("Algorithm: " <> algorithm)
+              // CHANGE
+              let start = timestamp.system_time()
               let main_process = process.new_subject()
               let assert Ok(_parent) =
                 parent.start_parent(
@@ -38,6 +43,13 @@ pub fn main() -> Nil {
                 )
               let response = process.receive_forever(main_process)
               io.println(response)
+              let time =
+                duration.to_seconds(timestamp.difference(
+                  start,
+                  timestamp.system_time(),
+                ))
+              echo "Program took " <> float.to_string(time) <> " seconds"
+              Nil
             }
             False, _ ->
               io.println(
