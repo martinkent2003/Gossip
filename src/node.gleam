@@ -1,4 +1,3 @@
-import gleam/bool
 import gleam/erlang/process.{type Subject}
 import gleam/float
 import gleam/int
@@ -97,9 +96,6 @@ pub fn handle_message(node: Node, message: Message) -> actor.Next(Node, Message)
       let new_ratio = half_s /. half_w
 
       let difference = float.absolute_value(current_ratio -. new_ratio)
-      io.println(
-        float.to_string(difference) <> bool.to_string(difference <. 10.0e-10),
-      )
       let new_stable_count = case difference <. 10.0e-10 {
         True -> node.stable_count + 1
         False -> 0
@@ -107,17 +103,24 @@ pub fn handle_message(node: Node, message: Message) -> actor.Next(Node, Message)
 
       case new_stable_count >= 3 {
         True -> {
-          io.println("Node " <> int.to_string(node.id) <> " has converged")
+          io.println(
+            "Node "
+            <> int.to_string(node.id)
+            <> " has converged with ratio "
+            <> float.to_string(new_ratio)
+            <> " and difference "
+            <> float.to_string(difference),
+          )
           process.send(node.parent, Converged)
           actor.stop()
         }
         False -> {
-          io.println(
-            "Node "
-            <> int.to_string(node.id)
-            <> " has a ratio s/w of "
-            <> float.to_string(new_ratio),
-          )
+          // io.println(
+          //   "Node "
+          //   <> int.to_string(node.id)
+          //   <> " has a ratio s/w of "
+          //   <> float.to_string(new_ratio),
+          // )
           let new_node =
             Node(..node, s: half_s, w: half_w, stable_count: new_stable_count)
           let random_neighbor = list.first(list.sample(node.neighbors, 1))
