@@ -7,6 +7,8 @@ import gleam/list
 import gleam/otp/actor
 import gleam/time/duration
 import gleam/time/timestamp
+import message_types.{type Message, AddNeighbors}
+import node.{type Node, Node, handle_message}
 
 @external(erlang, "math", "pow")
 fn pow(base: Float, exp: Float) -> Float
@@ -24,12 +26,7 @@ pub fn logic(num_nodes: Int, topology: String, alogrithm: String) -> Nil {
   //id: subject of actor, value: list of neighbors subjects
   let parent_process = process.new_subject()
 
-  let init_node =
-    Node(
-      parent: parent_process,
-      // will be replaced when actor starts
-      neighbors: [],
-    )
+  let init_node = Node(parent: parent_process, neighbors: [])
   let actors: Dict(Int, Subject(Message)) = dict.new()
   let actors = seed_actors(num_nodes, init_node, actors)
 
@@ -260,14 +257,15 @@ pub fn td_topology(
   actors: Dict(Int, Subject(Message)),
   imp: Bool,
 ) -> Nil {
-  let n = pow(int.to_float(num_nodes), 1.0 /. 3.0) |> ceil |> float.round
-  td_topology_recursion(0, num_nodes, n, actors, imp)
+  let dimension_size =
+    pow(int.to_float(num_nodes), 1.0 /. 3.0) |> ceil |> float.round
+  td_topology_recursion(0, num_nodes, dimension_size, actors, imp)
 }
 
 fn td_topology_recursion(
   current: Int,
   num_nodes: Int,
-  n: Int,
+  dimension_size: Int,
   actors: Dict(Int, Subject(Message)),
   imp: Bool,
 ) -> Nil {
@@ -275,38 +273,46 @@ fn td_topology_recursion(
     True -> Nil
     False -> {
       let neighbors = []
-
+      //x-axis neigbhors
       let cand = current - 1
-      let neighbors = case cand >= 0 && same_row(current, cand, n) {
+      let neighbors = case
+        cand >= 0 && same_row(current, cand, dimension_size)
+      {
         True -> update_neighbors(cand, neighbors, actors)
         False -> neighbors
       }
 
       let cand = current + 1
-      let neighbors = case cand < num_nodes && same_row(current, cand, n) {
+      let neighbors = case
+        cand < num_nodes && same_row(current, cand, dimension_size)
+      {
+        True -> update_neighbors(cand, neighbors, actors)
+        False -> neighbors
+      }
+      //y-axis neighbors
+      let cand = current - dimension_size
+      let neighbors = case
+        cand >= 0 && same_slab(current, cand, dimension_size)
+      {
         True -> update_neighbors(cand, neighbors, actors)
         False -> neighbors
       }
 
-      let cand = current - n
-      let neighbors = case cand >= 0 && same_slab(current, cand, n) {
+      let cand = current + dimension_size
+      let neighbors = case
+        cand < num_nodes && same_slab(current, cand, dimension_size)
+      {
         True -> update_neighbors(cand, neighbors, actors)
         False -> neighbors
       }
-
-      let cand = current + n
-      let neighbors = case cand < num_nodes && same_slab(current, cand, n) {
-        True -> update_neighbors(cand, neighbors, actors)
-        False -> neighbors
-      }
-
-      let cand = current - { n * n }
+      //z-axis neighbors
+      let cand = current - { dimension_size * dimension_size }
       let neighbors = case cand >= 0 {
         True -> update_neighbors(cand, neighbors, actors)
         False -> neighbors
       }
 
-      let cand = current + { n * n }
+      let cand = current + { dimension_size * dimension_size }
       let neighbors = case cand < num_nodes {
         True -> update_neighbors(cand, neighbors, actors)
         False -> neighbors
@@ -328,7 +334,7 @@ fn td_topology_recursion(
         Ok(node) -> process.send(node, AddNeighbors(neighbors))
         Error(_) -> Nil
       }
-      td_topology_recursion(current + 1, num_nodes, n, actors, imp)
+      td_topology_recursion(current + 1, num_nodes, dimension_size, actors, imp)
     }
   }
 }
@@ -379,44 +385,4 @@ fn choose_random_neighbor(
       update_neighbors(cand, neighbors, actors)
     }
   }
-}
-
-//actor logic here
-
-pub type ParentMessage {
-  Received(id: Int)
-  Converged(id: Int)
-  //message from child to parent to indicate convergence
-}
-
-pub type Message {
-  //used to seed the 
-  AddNeighbors(neighbors: List(Subject(Message)))
-  //implement the inter-actor messages received
-  Shutdown
-}
-
-pub type Node {
-  Node(
-    parent: Subject(ParentMessage),
-    neighbors: List(Subject(Message)),
-    //topology: String,
-    //algorithm: String,
-    //ratio: Float,
-    //stable_count: Int,
-  )
-}
-
-pub fn handle_message(node: Node, message: Message) -> actor.Next(Node, Message) {
-  case message {
-    Shutdown -> actor.stop()
-    AddNeighbors(neighbors) -> {
-      //io.println("Previous neighbors: " <> int.to_string(list.length(node.neighbors)))
-      let new_node = Node(parent: node.parent, neighbors: neighbors)
-      //io.println("Neighbors added: " <> int.to_string(list.length(neighbors)))
-      actor.continue(new_node)
-    }
-  }
-  //neighbor message from parent to populat neihbor set
-  //message from other actor to update gossip/push-sum
 }

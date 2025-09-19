@@ -1,11 +1,11 @@
-import gleam/list
 import argv
 import gleam/int
 import gleam/io
-import node_actor
-
+import gleam/list
+import parent
 
 const topologies = ["full", "line", "3D", "imp3D"]
+
 const algorithms = ["gossip", "push-sum"]
 
 pub fn main() -> Nil {
@@ -20,26 +20,29 @@ pub fn main() -> Nil {
       //check the number of nodes is an integer
       case num_nodes {
         Ok(num_nodes) -> {
-          io.println ("Number of nodes: " <> int.to_string(num_nodes))
+          io.println("Number of nodes: " <> int.to_string(num_nodes))
           let valid_topology = list.contains(topologies, topology)
           let valid_algorithm = list.contains(algorithms, algorithm)
           case valid_topology, valid_algorithm {
             True, True -> {
-              io.println ("Topology: " <> topology)
-              io.println ("Algorithm: " <> algorithm)
-              node_actor.logic(num_nodes, topology, algorithm)
+              io.println("Topology: " <> topology)
+              io.println("Algorithm: " <> algorithm)
+              parent.logic(num_nodes, topology, algorithm)
             }
-            False, _ -> io.println("Invalid topology. Valid topologies are: full, line, 3D, imp3D")
-            _, False -> io.println("Invalid algorithm. Valid algorithms are: gossip, push-sum")
+            False, _ ->
+              io.println(
+                "Invalid topology. Valid topologies are: full, line, 3D, imp3D",
+              )
+            _, False ->
+              io.println(
+                "Invalid algorithm. Valid algorithms are: gossip, push-sum",
+              )
           }
         }
         Error(_) -> io.println(arg1 <> " is not a valid integer")
       }
-      
-
     }
-    _ -> io.println("Please provide two string arguments, e.g. gleam run Joe 42")
+    _ ->
+      io.println("Please provide two string arguments, e.g. gleam run Joe 42")
   }
-
 }
-
