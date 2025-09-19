@@ -13,6 +13,7 @@ pub type Message {
   AddNeighbors(neighbors: List(Subject(Message)))
   Gossip
   StartPushSum
+  PushSum(s: Float, w: Float)
   //implement the inter-actor messages received
   Shutdown
 }

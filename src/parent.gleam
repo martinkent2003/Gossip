@@ -7,7 +7,7 @@ import gleam/list
 import gleam/otp/actor
 import message_types.{
   type Message, type ParentMessage, AddNeighbors, Converged, Gossip, ParentInit,
-  Received,
+  Received, StartPushSum,
 }
 import node.{Node, handle_message}
 
@@ -59,8 +59,13 @@ fn handle_message_parent(
       let new_state = ParentState(..state, nodes_ready: state.nodes_ready + 1)
       case new_state.nodes_ready == new_state.num_nodes, empty {
         True, False -> {
+          process.send(state.main_process, "Starting Algorithm")
           let assert Ok(node) = dict.get(state.nodes, 1)
-          process.send(node, Gossip)
+          case state.algorithm {
+            "gossip" -> process.send(node, Gossip)
+            "push-sum" -> process.send(node, StartPushSum)
+            _ -> Nil
+          }
           Nil
         }
         True, True -> process.send(state.self, Received)
@@ -154,6 +159,9 @@ pub fn seed_actors(
           parent: parent_process,
           neighbors: [],
           rumor_count: 0,
+          s: int.to_float(num_nodes),
+          w: 1.0,
+          stable_count: 0,
         )
       let assert Ok(actor) =
         actor.new(init_node) |> actor.on_message(handle_message) |> actor.start

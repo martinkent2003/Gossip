@@ -31,8 +31,6 @@ pub fn main() -> Nil {
             True, True -> {
               io.println("Topology: " <> topology)
               io.println("Algorithm: " <> algorithm)
-              // CHANGE
-              let start = timestamp.system_time()
               let main_process = process.new_subject()
               let assert Ok(_parent) =
                 parent.start_parent(
@@ -41,8 +39,13 @@ pub fn main() -> Nil {
                   algorithm,
                   main_process,
                 )
+              // Receive message to start timer
               let response = process.receive_forever(main_process)
               io.println(response)
+              let start = timestamp.system_time()
+              let response = process.receive_forever(main_process)
+              io.println(response)
+              // Receive message to end timer
               let time =
                 duration.to_seconds(timestamp.difference(
                   start,
