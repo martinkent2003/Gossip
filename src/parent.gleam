@@ -7,7 +7,9 @@ import gleam/list
 import gleam/otp/actor
 import gleam/time/duration
 import gleam/time/timestamp
-import message_types.{type Message, AddNeighbors}
+import message_types.{
+  type Message, type ParentMessage, AddNeighbors, ParentInit, Received,
+}
 import node.{type Node, Node, handle_message}
 
 @external(erlang, "math", "pow")
@@ -16,19 +18,70 @@ fn pow(base: Float, exp: Float) -> Float
 @external(erlang, "math", "ceil")
 fn ceil(x: Float) -> Float
 
-pub fn main() -> Nil {
-  logic(1000, "full", "gossip")
-  Nil
+pub fn start_parent(
+  num_nodes: Int,
+  topology: String,
+  algorithm: String,
+  main_process: Subject(String),
+) {
+  actor.new_with_initialiser(1000, fn(self_subject) {
+    actor.send(self_subject, ParentInit)
+    let state =
+      ParentState(num_nodes, 0, topology, algorithm, self_subject, main_process)
+    let _result =
+      Ok(
+        actor.initialised(state)
+        |> actor.returning(self_subject),
+      )
+  })
+  |> actor.on_message(handle_message_parent)
+  |> actor.start
 }
 
-pub fn logic(num_nodes: Int, topology: String, alogrithm: String) -> Nil {
+fn handle_message_parent(
+  state: ParentState,
+  message: ParentMessage,
+) -> actor.Next(ParentState, ParentMessage) {
+  case message {
+    ParentInit -> {
+      echo state.self
+      logic(state)
+      actor.continue(state)
+    }
+    Received -> {
+      let new_state = ParentState(..state, nodes_ready: state.nodes_ready + 1)
+      case new_state.nodes_ready == new_state.num_nodes {
+        True -> {
+          let _ = echo "READY TO SEND MESSAGE"
+          Nil
+        }
+        False -> Nil
+      }
+      actor.continue(new_state)
+    }
+    _ -> actor.continue(state)
+  }
+}
+
+pub type ParentState {
+  ParentState(
+    num_nodes: Int,
+    nodes_ready: Int,
+    topology: String,
+    algorithm: String,
+    self: process.Subject(ParentMessage),
+    main_process: process.Subject(String),
+  )
+}
+
+pub fn logic(state: ParentState) -> Nil {
   //first we spawn num_nodes amount of actors, get back the subject, and store them in a hashmap
   //id: subject of actor, value: list of neighbors subjects
-  let parent_process = process.new_subject()
 
-  let init_node = Node(parent: parent_process, neighbors: [])
+  echo "running logic"
+  let init_node = Node(parent: state.self, neighbors: [])
   let actors: Dict(Int, Subject(Message)) = dict.new()
-  let actors = seed_actors(num_nodes, init_node, actors)
+  let actors = seed_actors(state.num_nodes, init_node, actors)
 
   io.println(
     "Created all actors, now testing for length of actors: "
@@ -36,22 +89,22 @@ pub fn logic(num_nodes: Int, topology: String, alogrithm: String) -> Nil {
   )
 
   //constant
-  case topology {
+  case state.topology {
     "full" -> {
       io.println("Creating full topology")
-      full_topology(num_nodes, actors)
+      full_topology(state.num_nodes, actors)
     }
     "line" -> {
       io.println("Creating line topology")
-      line_topology(num_nodes, actors)
+      line_topology(state.num_nodes, actors)
     }
     "3D" -> {
       io.println("Creating 3D topology")
-      td_topology(num_nodes, actors, False)
+      td_topology(state.num_nodes, actors, False)
     }
     "imp3D" -> {
       io.println("Creating imp3D topology")
-      td_topology(num_nodes, actors, True)
+      td_topology(state.num_nodes, actors, True)
     }
     _ -> io.println("Invalid topology")
   }
@@ -59,7 +112,7 @@ pub fn logic(num_nodes: Int, topology: String, alogrithm: String) -> Nil {
   //here we would run the algorithm on the created topology
   //start timer here 
   let start = timestamp.system_time()
-  case alogrithm {
+  case state.algorithm {
     "gossip" -> {
       io.println("Running gossip algorithm")
     }
@@ -71,9 +124,10 @@ pub fn logic(num_nodes: Int, topology: String, alogrithm: String) -> Nil {
   process.sleep(1230)
   let time =
     duration.to_seconds(timestamp.difference(start, timestamp.system_time()))
-  echo "Program took " <> float.to_string(time) <> " seconds"
-  //here we will create the algorithm
-  Nil
+  process.send(
+    state.main_process,
+    "Program took " <> float.to_string(time) <> " seconds",
+  )
 }
 
 //seeding actors recursive loop:

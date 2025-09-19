@@ -1,4 +1,5 @@
 import argv
+import gleam/erlang/process
 import gleam/int
 import gleam/io
 import gleam/list
@@ -27,7 +28,16 @@ pub fn main() -> Nil {
             True, True -> {
               io.println("Topology: " <> topology)
               io.println("Algorithm: " <> algorithm)
-              parent.logic(num_nodes, topology, algorithm)
+              let main_process = process.new_subject()
+              let assert Ok(_parent) =
+                parent.start_parent(
+                  num_nodes,
+                  topology,
+                  algorithm,
+                  main_process,
+                )
+              let response = process.receive_forever(main_process)
+              io.println(response)
             }
             False, _ ->
               io.println(
